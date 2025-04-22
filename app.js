@@ -4,6 +4,7 @@ require("dotenv").config();
 const path = require("path");
 const cookieParser = require("cookie-parser");
 const fs = require("fs");
+const promedioRoutes = require("./routes/promedioRoutes");
 
 const app = express();
 
@@ -31,7 +32,7 @@ app.use(
 // Middleware para archivos estáticos
 app.use(
   "/uploads",
-  express.static(path.join(__dirname, "public/uploads"), {
+  express.static(path.join(__dirname, "uploads/profiles"), {
     setHeaders: (res) => {
       res.set("Cache-Control", "public, max-age=86400"); // 1 día
     },
@@ -42,6 +43,7 @@ app.use(
 app.options("*", cors());
 
 // Rutas API
+app.use("/api", require("./routes/adminRoutes"));
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api", require("./routes/jugadorRoutes"));
 app.use("/api", require("./routes/rolRoutes"));
@@ -52,6 +54,7 @@ app.use("/api", require("./routes/datosEntrenamientoRoutes"));
 app.use("/api", require("./routes/estadisticasRoutes"));
 app.use("/api", require("./routes/usuarioRoutes"));
 app.use("/api", require("./routes/personaRoutes"));
+app.use("/api/promedios", promedioRoutes);
 
 // Error 404
 app.use((req, res, next) => {
@@ -62,6 +65,12 @@ app.use((req, res, next) => {
 app.use((err, req, res, next) => {
   console.error("Error interno:", err.stack);
   res.status(500).json({ success: false, message: "Error interno del servidor" });
+});
+
+console.log('Cloudinary Config:', {
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY ? '*** set ***' : 'MISSING',
+  api_secret: process.env.CLOUDINARY_API_SECRET ? '*** set ***' : 'MISSING'
 });
 
 // Inicializar servidor

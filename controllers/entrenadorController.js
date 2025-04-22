@@ -11,10 +11,10 @@ const verEntrenadores = async (req, res) => {
     });
     res.json(entrenadores);
   } catch (error) {
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       message: "Error al obtener entrenadores",
-      code: "FETCH_TRAINERS_ERROR"
+      code: "FETCH_TRAINERS_ERROR",
     });
   }
 };
@@ -30,22 +30,22 @@ const verEntrenador = async (req, res) => {
     });
 
     if (!entrenador) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
         message: "Entrenador no encontrado",
-        code: "TRAINER_NOT_FOUND"
+        code: "TRAINER_NOT_FOUND",
       });
     }
 
-    res.json({ 
+    res.json({
       success: true,
-      data: entrenador 
+      data: entrenador,
     });
   } catch (error) {
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       message: "Error al obtener entrenador",
-      code: "FETCH_TRAINER_ERROR"
+      code: "FETCH_TRAINER_ERROR",
     });
   }
 };
@@ -58,10 +58,10 @@ const crearEntrenador = async (req, res) => {
     const usuarioExistente = await Usuario.findOne({ where: { email } });
     if (usuarioExistente) {
       await t.rollback();
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
         message: "El correo ya está registrado",
-        code: "EMAIL_ALREADY_EXISTS"
+        code: "EMAIL_ALREADY_EXISTS",
       });
     }
 
@@ -69,32 +69,32 @@ const crearEntrenador = async (req, res) => {
 
     const newPersona = await Persona.create(
       { nombre, apellido, telefono },
-      { transaction: t }
+      { transaction: t },
     );
 
     const newUsuario = await Usuario.create(
       { email, password, persona_id: newPersona.id, rol_id: 2 },
-      { transaction: t }
+      { transaction: t },
     );
 
     const newEntrenador = await Entrenador.create(
       { usuario_id: newUsuario.id, equipo_id },
-      { transaction: t }
+      { transaction: t },
     );
 
     await t.commit();
-    res.status(201).json({ 
+    res.status(201).json({
       success: true,
       message: "Entrenador creado exitosamente",
-      data: newEntrenador 
+      data: newEntrenador,
     });
   } catch (error) {
     await t.rollback();
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       message: "Error al crear entrenador",
       code: "CREATE_TRAINER_ERROR",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
@@ -109,10 +109,10 @@ const actualizarEntrenador = async (req, res) => {
     });
 
     if (!entrenador) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
         message: "Entrenador no encontrado",
-        code: "TRAINER_NOT_FOUND"
+        code: "TRAINER_NOT_FOUND",
       });
     }
 
@@ -131,16 +131,16 @@ const actualizarEntrenador = async (req, res) => {
       await entrenador.update({ equipo_id });
     }
 
-    res.json({ 
+    res.json({
       success: true,
-      message: "Entrenador actualizado correctamente" 
+      message: "Entrenador actualizado correctamente",
     });
   } catch (error) {
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       message: "Error al actualizar entrenador",
       code: "UPDATE_TRAINER_ERROR",
-      error: error.message 
+      error: error.message,
     });
   }
 };
@@ -148,198 +148,117 @@ const actualizarEntrenador = async (req, res) => {
 const verPerfil = async (req, res) => {
   try {
     const usuarioId = req.params.id;
-    
-    const entrenador = await Entrenador.findOne({
-      where: { usuario_id: usuarioId },
-      include: [
-        {
-          model: Usuario,
-          as: 'usuarios',
-          include: [
-            {
-              model: Persona,
-              as: 'personas',
-              attributes: ['id', 'nombre', 'apellido', 'telefono']
-            }
-          ],
-        },
-      ],
-    });
-
-    if (!entrenador || !entrenador.usuarios || !entrenador.usuarios.personas) {
-      return res.status(404).json({ 
-        success: false,
-        message: "Perfil no encontrado",
-        code: "PROFILE_NOT_FOUND"
-      });
-    }
-
-    const { nombre, apellido, telefono } = entrenador.usuarios.personas; // Acceder correctamente
-
-    const camposObligatorios = { nombre, apellido, telefono };
-    const faltantes = Object.entries(camposObligatorios)
-      .filter(([_, value]) => !value)
-      .map(([key]) => key);
-
-    if (faltantes.length > 0) {
-      return res.status(200).json({
-        success: true,
-        perfilCompleto: false,
-        message: "Falta completar información del perfil",
-        camposFaltantes: faltantes,
-        datos: { nombre, apellido, telefono }
-      });
-    }
-
-    return res.json({
-      success: true,
-      perfilCompleto: true,
-      message: "Perfil completo",
-      datos: { nombre, apellido, telefono }
-    });
-
-  } catch (error) {
-    console.error("Error al ver perfil:", error);
-    return res.status(500).json({ 
-      success: false,
-      message: "Error al obtener perfil",
-      code: "FETCH_PROFILE_ERROR",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-};
-
-const actualizarPerfil = async (req, res) => {
-  const t = await sequelize.transaction();
-  try {
-    const usuarioId = req.user.id;
-    const { nombre, apellido, telefono } = req.body;
-
-    if (!nombre || !apellido) {
-      await t.rollback();
-      return res.status(400).json({ 
-        success: false,
-        message: "Nombre y apellido son obligatorios",
-        code: "MISSING_REQUIRED_FIELDS",
-        fields: ['nombre', 'apellido']
-      });
-    }
-
-    if (telefono && !/^[0-9]{10,15}$/.test(telefono)) {
-      await t.rollback();
-      return res.status(400).json({ 
-        success: false,
-        message: "Formato de teléfono inválido",
-        code: "INVALID_PHONE_FORMAT"
-      });
-    }
 
     const entrenador = await Entrenador.findOne({
       where: { usuario_id: usuarioId },
       include: [
         {
           model: Usuario,
-          as: 'usuarios',
+          as: "usuarios",
           include: [
             {
               model: Persona,
-              as: 'personas',
-              attributes: ['id', 'nombre', 'apellido', 'telefono']
+              as: "personas",
+              attributes: ["nombre", "apellido", "telefono", "foto_perfil"],
             },
           ],
         },
       ],
-      transaction: t
     });
 
-    if (!entrenador || !entrenador.usuarios || !entrenador.usuarios.personas) {
-      await t.rollback();
-      return res.status(404).json({ 
+    if (!entrenador) {
+      return res.status(404).json({
         success: false,
-        message: "Perfil no encontrado",
-        code: "PROFILE_NOT_FOUND"
+        message: "Perfil de entrenador no encontrado",
+        code: "TRAINER_PROFILE_NOT_FOUND",
       });
     }
 
-    // Actualizar Persona usando update con where
-    await Persona.update(
-      {
-        nombre,
-        apellido,
-        telefono: telefono || entrenador.usuarios.personas.telefono
-      },
-      {
-        where: { id: entrenador.usuarios.personas.id },
-        transaction: t
-      }
-    );
-
-    await t.commit();
-    
-    return res.json({
+    res.json({
       success: true,
-      message: "Perfil actualizado correctamente",
       data: {
-        nombre,
-        apellido,
-        telefono: telefono || entrenador.usuarios.personas.telefono
-      }
+        id: entrenador.id,
+        nombre: entrenador.usuarios.personas.nombre,
+        apellido: entrenador.usuarios.personas.apellido,
+        telefono: entrenador.usuarios.personas.telefono,
+        foto_perfil: entrenador.usuarios.personas.foto_perfil,
+        usuario_id: usuarioId,
+      },
     });
-
   } catch (error) {
-    await t.rollback();
-    console.error("Error al actualizar perfil:", error);
-    return res.status(500).json({
+    console.error("Error al obtener perfil de entrenador:", error);
+    res.status(500).json({
       success: false,
-      message: "Error al actualizar perfil",
-      code: "PROFILE_UPDATE_ERROR",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: "Error interno al obtener perfil",
+      code: "INTERNAL_SERVER_ERROR",
     });
   }
 };
 
+// Actualizar verificarPerfilCompleto
 const verificarPerfilCompleto = async (req, res) => {
+  console.log("verificando el perfil del entrenador:", req.params.id);
   try {
-    const usuarioId = req.user.id; // Obtiene el ID del token
+    const usuarioId = req.params.id;
 
+    // Buscar entrenador con usuario y persona relacionada
     const entrenador = await Entrenador.findOne({
       where: { usuario_id: usuarioId },
       include: [
         {
           model: Usuario,
-          as: 'usuarios',
+          as: "usuarios",
           include: [
             {
               model: Persona,
-              as: 'personas',
-              attributes: ['nombre', 'apellido', 'telefono']
-            }
-          ]
-        }
-      ]
+              as: "personas",
+              attributes: ["nombre", "apellido", "telefono"],
+            },
+          ],
+        },
+      ],
     });
 
-    if (!entrenador || !entrenador.usuarios || !entrenador.usuarios.personas) {
-      return res.json({ 
-        success: true,
-        profileComplete: false
+    if (!entrenador) {
+      return res.status(404).json({
+        success: false,
+        message: "Entrenador no encontrado",
+        code: "TRAINER_NOT_FOUND",
       });
     }
 
-    const { nombre, apellido, telefono } = entrenador.usuarios.personas;
-    const camposRequeridos = { nombre, apellido, telefono };
-    const perfilCompleto = Object.values(camposRequeridos).every(val => val);
+    // Campos requeridos para entrenador
+    const camposRequeridos = {
+      nombre: entrenador.usuarios.personas.nombre,
+      apellido: entrenador.usuarios.personas.apellido,
+      telefono: entrenador.usuarios.personas.telefono,
+    };
 
-    res.json({ 
+    // Identificar campos faltantes
+    const camposFaltantes = Object.entries(camposRequeridos)
+      .filter(([_, value]) => !value)
+      .map(([key]) => key);
+
+    // Datos existentes del perfil
+    const profileData = {
+      nombre: entrenador.usuarios.personas.nombre,
+      apellido: entrenador.usuarios.personas.apellido,
+      telefono: entrenador.usuarios.personas.telefono,
+    };
+
+    res.json({
       success: true,
-      profileComplete: perfilCompleto
+      profileComplete: camposFaltantes.length === 0,
+      missingFields: camposFaltantes,
+      profileData,
     });
-
   } catch (error) {
-    console.error("Error verificando perfil:", error);
-    res.status(500).json({ 
+    console.log("Error verificando perfil de entrenador:", error);
+    res.status(500).json({
       success: false,
-      message: "Error al verificar perfil"
+      message: "Error interno al verificar perfil",
+      code: "INTERNAL_SERVER_ERROR",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
@@ -350,13 +269,12 @@ const obtenerEntrenadorPorUsuario = async (req, res) => {
   res.json(entrenador);
 };
 
-module.exports = { 
-  verEntrenadores, 
-  crearEntrenador, 
-  verEntrenador, 
-  actualizarEntrenador, 
-  verPerfil, 
-  actualizarPerfil,
+module.exports = {
+  verEntrenadores,
+  crearEntrenador,
+  verEntrenador,
+  actualizarEntrenador,
+  verPerfil,
   verificarPerfilCompleto,
-  obtenerEntrenadorPorUsuario
+  obtenerEntrenadorPorUsuario,
 };

@@ -15,33 +15,24 @@ const {
 // 🔹 Perfil del entrenador actual (requiere autenticación y rol entrenador)
 router.get(
   "/entrenador/perfil/:id",
-  authMiddleware,
-  verificarEntrenador,
+  // authMiddleware,
+  // verificarEntrenador,
   entrenadorController.verPerfil,
 );
 
 // Agrega esta nueva ruta
 router.get(
-  '/entrenador/verificar-perfil',
+  "/entrenador/verificar-perfil/:id",
   authMiddleware,
   verificarEntrenador,
-  entrenadorController.verificarPerfilCompleto
+  entrenadorController.verificarPerfilCompleto,
 );
 
 // Obtener entrenador por ID de usuario
 router.get(
   "/entrenador/usuario/:id",
-  authMiddleware,
-  entrenadorController.obtenerEntrenadorPorUsuario
-);
-
-router.put(
-  "/entrenador/perfil",
-  authMiddleware,
-  verificarEntrenador,
-  validateProfileData,
-  validateImage,
-  entrenadorController.actualizarPerfil,
+  // authMiddleware,
+  entrenadorController.obtenerEntrenadorPorUsuario,
 );
 
 router.get("/entrenador/:id", entrenadorController.verEntrenador);
