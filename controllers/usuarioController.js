@@ -1,110 +1,110 @@
-const { Usuario, Persona, sequelize } = require("../models");
-const { cloudinary, deleteImage } = require('../config/cloudinary');
-const { uploadToCloudinary } = require('../middlewares/uploadMiddleware');
+const { cloudinary, deleteImage } = require("../config/cloudinary");
+const { uploadToCloudinary } = require("../middlewares/uploadMiddleware");
+const {
+  Usuario,
+  Persona,
+  Jugador,
+  Entrenador,
+  Administrador,
+  sequelize,
+} = require("../models");
 const bcrypt = require("bcryptjs");
-
-const nodemailer = require('nodemailer');
-const dotenv = require('dotenv');
-const {correoContraseña}=require('../utils/EmailPasword')
+const dotenv = require("dotenv");
+const { correoContraseña } = require("../utils/EmailPasword");
 
 dotenv.config();
 
-function generarPasswordAzar(){
+function generarPasswordAzar() {
   //Lista de caracteres que van dentro de la contraseña
-  const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*_+';
-  
+  const caracteres =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*_+";
   //Variable en la que se almacenará la contraseña
-  let password = '';
-  const longitud= 11;
-
+  let password = "";
+  const longitud = 11;
   for (let i = 0; i < longitud; i++) {
-    password += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+    password += caracteres.charAt(
+      Math.floor(Math.random() * caracteres.length),
+    );
   }
   return password;
 }
 
-const CrearUsuario = async (req,res)=>{
-  const {email, rol}= req.body;
-  const t = await sequelize.transaction(); 
-
-  try{
-
+// ----------------------------------------------------------
+const CrearUsuario = async (req, res) => {
+  const { email, rol } = req.body;
+  const t = await sequelize.transaction();
+  try {
     if (!email || !rol) {
       return res.status(400).json({ error: "Datos incompletos" });
     }
-    //Verifica que el usuario no existe 
-    const exist = await Usuario.findOne({where:{email}});
-    if (exist){
-      return res.status(400).json({ error: "El correo ya está registrado" })
+    //Verifica que el usuario no existe
+    const exist = await Usuario.findOne({ where: { email } });
+    if (exist) {
+      return res.status(400).json({ error: "El correo ya está registrado" });
     }
-
     //Rol id
     const roles = {
       administrador: 1,
       entrenador: 2,
       jugador: 3,
     };
-    
     const rol_id = roles[rol.toLowerCase()];
     if (!rol_id) {
       return res.status(400).json({ error: "Rol inválido" });
     }
-
     //Crear la contraseña del usuario al azar
     const passAleatorea = generarPasswordAzar(); // Contraseña aleatorea creada por la función anterior
     const hashedPassword = await bcrypt.hash(passAleatorea, 10);
 
-    //Enviar correo
-
     //Crear el id de persona
     const persona = await Persona.create(
-      { nombre: null, apellido:null, telefono: null  },
-      { transaction: t }
+      { nombre: null, apellido: null, telefono: null },
+      { transaction: t },
     );
-    //Crear el usuario 
+    //Crear el usuario
     const usuario = await Usuario.create(
       {
         email,
-        password:hashedPassword,
+        password: hashedPassword,
         persona_id: persona.id,
         rol_id, // Rol asignador
       },
-      { transaction: t }
+      { transaction: t },
     );
-
-    let data ={}
+    let data = {};
     //Crear jugador o entrenador
-    if(rol_id ==2){
+    if (rol_id == 2) {
       const entrenador = await Entrenador.create(
-        {usuario_id: usuario.id},
-        { transaction: t }
+        { usuario_id: usuario.id },
+        { transaction: t },
       );
-      data ={entrenador};
-    }else if(rol_id ==3){
+      data = { entrenador };
+    } else if (rol_id == 3) {
       const jugador = await Jugador.create(
-        {usuario_id: usuario.id},
-        { transaction: t }
+        { usuario_id: usuario.id },
+        { transaction: t },
       );
-      data ={jugador};
+      data = { jugador };
     }
-
     // Confirmar transacción
     console.log("Usuario creado correctamente");
 
+    //Enviar Correo
     await correoContraseña(email, passAleatorea);
-
     res.json({
       success: true,
       message: "Correo de recuperación enviado",
     });
+    console.log(passAleatorea);
     await t.commit();
-
-  }catch(e){
-    await t.rollback(); 
-    console.log("Error en CrearUsuario", e)
-    return res.status(500).json({mjs:`Error desde el método CrearUsuario ${e}`})
+  } catch (e) {
+    await t.rollback();
+    console.log("Error en CrearUsuario", e);
+    return res
+      .status(500)
+      .json({ mjs: `Error desde el método CrearUsuario ${e}` });
   }
-}
+};
 
 const obtenerUsuarioActual = async (req, res) => {
   try {
@@ -114,21 +114,21 @@ const obtenerUsuarioActual = async (req, res) => {
         success: false,
         message: "No autenticado",
         code: "UNAUTHORIZED",
-        details: "Token de usuario no encontrado"
+        details: "Token de usuario no encontrado",
       });
     }
 
     // Obtener usuario con datos relacionados
     const usuario = await Usuario.findByPk(req.user.id, {
-      attributes: ['id', 'email', 'rol_id', 'persona_id'],
+      attributes: ["id", "email", "rol_id", "persona_id"],
       include: [
-        { 
+        {
           model: Persona,
-          as: 'personas', // Asegúrate que coincida con tu asociación
-          attributes: ['id', 'nombre', 'apellido', 'telefono', 'foto_perfil']
-        }
+          as: "personas", // Asegúrate que coincida con tu asociación
+          attributes: ["id", "nombre", "apellido", "telefono", "foto_perfil"],
+        },
       ],
-      rejectOnEmpty: true // Forzar error si no se encuentra
+      rejectOnEmpty: true, // Forzar error si no se encuentra
     });
 
     if (!usuario || !usuario.personas) {
@@ -136,15 +136,15 @@ const obtenerUsuarioActual = async (req, res) => {
         success: false,
         message: "Usuario no encontrado",
         code: "USER_NOT_FOUND",
-        details: "El ID del usuario no existe en la base de datos"
+        details: "El ID del usuario no existe en la base de datos",
       });
     }
 
     // Mapear nombres de roles
     const roles = {
-      1: 'admin',
-      2: 'entrenador',
-      3: 'jugador'
+      1: "admin",
+      2: "entrenador",
+      3: "jugador",
     };
 
     // Formatear respuesta
@@ -152,72 +152,71 @@ const obtenerUsuarioActual = async (req, res) => {
       id: usuario.id,
       email: usuario.email,
       rol_id: usuario.rol_id,
-      rol_nombre: roles[usuario.rol_id] || 'desconocido',
+      rol_nombre: roles[usuario.rol_id] || "desconocido",
       nombre: usuario.personas.nombre,
       apellido: usuario.personas.apellido,
       telefono: usuario.personas.telefono,
-      foto_perfil: usuario.personas.foto_perfil 
+      foto_perfil: usuario.personas.foto_perfil
         ? `${usuario.personas.foto_perfil}?t=${Date.now()}` // Cache busting
-        : '/default-profile.png'
+        : "/default-profile.png",
     };
 
     res.json({
       success: true,
-      data: responseData
+      data: responseData,
     });
-
   } catch (error) {
-    console.error('Error al obtener usuario:', {
+    console.error("Error al obtener usuario:", {
       error: error.message,
       userId: req.user?.id,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
-    const statusCode = error.name === 'SequelizeEmptyResultError' ? 404 : 500;
-    
+    const statusCode = error.name === "SequelizeEmptyResultError" ? 404 : 500;
+
     res.status(statusCode).json({
       success: false,
       message: "Error en el servidor",
       code: "SERVER_ERROR",
-      error: process.env.NODE_ENV === 'development' 
-        ? error.message 
-        : undefined,
-      details: process.env.NODE_ENV === 'development'
-        ? { stack: error.stack }
-        : undefined
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+      details:
+        process.env.NODE_ENV === "development"
+          ? { stack: error.stack }
+          : undefined,
     });
   }
 };
 
+//------------------------------------------------------------------
 const obtenerUsuarioPorId = async (req, res) => {
   const { id } = req.params;
-  
+
   // Verificar que el usuario autenticado solo pueda ver su propio perfil
   if (req.user.id != id && req.user.role !== 1) {
     return res.status(403).json({
       success: false,
       message: "No tienes permiso para acceder a este recurso",
-      code: "FORBIDDEN"
+      code: "FORBIDDEN",
     });
   }
 
   try {
     const usuario = await Usuario.findByPk(id, {
       include: [
-        { 
+        {
           model: Persona,
-          as: 'personas',
-          attributes: ['nombre', 'apellido', 'telefono'/* , 'foto' */]
-        }
+          as: "personas",
+          attributes: ["nombre", "apellido", "telefono" /* , 'foto' */],
+        },
       ],
-      attributes: ['id', 'email', 'rol_id']
+      attributes: ["id", "email", "rol_id"],
     });
 
     if (!usuario) {
       return res.status(404).json({
         success: false,
         message: "Usuario no encontrado",
-        code: "USER_NOT_FOUND"
+        code: "USER_NOT_FOUND",
       });
     }
 
@@ -231,14 +230,14 @@ const obtenerUsuarioPorId = async (req, res) => {
         apellido: usuario.personas?.apellido,
         telefono: usuario.personas?.telefono,
         /* foto: usuario.personas?.foto */
-      }
+      },
     });
   } catch (error) {
     console.error("Error al obtener usuario:", error);
     res.status(500).json({
       success: false,
       message: "Error en el servidor",
-      code: "SERVER_ERROR"
+      code: "SERVER_ERROR",
     });
   }
 };
@@ -252,7 +251,7 @@ const actualizarUsuario = async (req, res) => {
     return res.status(400).json({
       success: false,
       message: "Nombre y apellido son obligatorios",
-      code: "MISSING_REQUIRED_FIELDS"
+      code: "MISSING_REQUIRED_FIELDS",
     });
   }
 
@@ -260,11 +259,13 @@ const actualizarUsuario = async (req, res) => {
   try {
     // Buscar usuario con su persona asociada
     const usuario = await Usuario.findByPk(usuarioId, {
-      include: [{ 
-        model: Persona, 
-        as: 'personas' 
-      }],
-      transaction: t
+      include: [
+        {
+          model: Persona,
+          as: "personas",
+        },
+      ],
+      transaction: t,
     });
 
     if (!usuario || !usuario.personas) {
@@ -272,17 +273,20 @@ const actualizarUsuario = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Usuario no encontrado",
-        code: "USER_NOT_FOUND"
+        code: "USER_NOT_FOUND",
       });
     }
 
     // Actualizar solo datos personales
-    await usuario.personas.update({ 
-      nombre, 
-      apellido, 
-      telefono 
-    }, { transaction: t });
-    
+    await usuario.personas.update(
+      {
+        nombre,
+        apellido,
+        telefono,
+      },
+      { transaction: t },
+    );
+
     await t.commit();
 
     res.json({
@@ -293,83 +297,90 @@ const actualizarUsuario = async (req, res) => {
         email: usuario.email,
         nombre,
         apellido,
-        telefono
-      }
+        telefono,
+      },
     });
-
   } catch (error) {
     await t.rollback();
     console.error("Error al actualizar usuario:", error);
     res.status(500).json({
       success: false,
       message: "Error interno del servidor",
-      code: "SERVER_ERROR"
+      code: "SERVER_ERROR",
     });
   }
 };
 
 const actualizarImagenPerfil = async (req, res) => {
   const usuarioId = req.user.id;
-  
-  console.log('Iniciando actualización de imagen para usuario:', usuarioId);
-  
+
+  console.log("Iniciando actualización de imagen para usuario:", usuarioId);
+
   // Validación de archivo recibido
   if (!req.file) {
-    console.error('No se recibió archivo en la solicitud');
+    console.error("No se recibió archivo en la solicitud");
     return res.status(400).json({
       success: false,
       message: "No se ha proporcionado ninguna imagen",
       code: "NO_IMAGE_PROVIDED",
-      details: "El campo 'foto_perfil' está vacío o no se envió correctamente"
+      details: "El campo 'foto_perfil' está vacío o no se envió correctamente",
     });
   }
 
-  console.log('Archivo recibido:', {
+  console.log("Archivo recibido:", {
     originalname: req.file.originalname,
     mimetype: req.file.mimetype,
     size: req.file.size,
-    bufferLength: req.file.buffer?.length || 0
+    bufferLength: req.file.buffer?.length || 0,
   });
 
   const t = await sequelize.transaction();
   try {
     // Buscar usuario con su persona asociada
     const usuario = await Usuario.findByPk(usuarioId, {
-      include: [{ 
-        model: Persona, 
-        as: 'personas' 
-      }],
-      transaction: t
+      include: [
+        {
+          model: Persona,
+          as: "personas",
+        },
+      ],
+      transaction: t,
     });
 
     if (!usuario) {
       await t.rollback();
-      console.error('Usuario no encontrado con ID:', usuarioId);
+      console.error("Usuario no encontrado con ID:", usuarioId);
       return res.status(404).json({
         success: false,
         message: "Usuario no encontrado",
         code: "USER_NOT_FOUND",
-        details: `No existe usuario con ID ${usuarioId}`
+        details: `No existe usuario con ID ${usuarioId}`,
       });
     }
 
     if (!usuario.personas) {
       await t.rollback();
-      console.error('Registro de persona no encontrado para usuario:', usuarioId);
+      console.error(
+        "Registro de persona no encontrado para usuario:",
+        usuarioId,
+      );
       return res.status(404).json({
         success: false,
         message: "Datos de perfil no encontrados",
         code: "PROFILE_NOT_FOUND",
-        details: "El usuario existe pero no tiene registro de persona asociado"
+        details: "El usuario existe pero no tiene registro de persona asociado",
       });
     }
 
     // Eliminar imagen anterior si existe
     if (usuario.personas.foto_perfil) {
       try {
-        console.log('Eliminando imagen anterior:', usuario.personas.foto_perfil);
+        console.log(
+          "Eliminando imagen anterior:",
+          usuario.personas.foto_perfil,
+        );
         await deleteImage(usuario.personas.foto_perfil);
-        console.log('Imagen anterior eliminada con éxito');
+        console.log("Imagen anterior eliminada con éxito");
       } catch (error) {
         console.error("Error al eliminar imagen anterior:", error.message);
         // Continuamos aunque falle la eliminación
@@ -378,47 +389,50 @@ const actualizarImagenPerfil = async (req, res) => {
 
     // Configuración de transformación para Cloudinary
     const uploadOptions = {
-      folder: 'user-profiles',
+      folder: "user-profiles",
       public_id: `user_${usuarioId}_${Date.now()}`,
       overwrite: true,
       transformation: [
-        { width: 500, height: 500, crop: 'fill', gravity: 'face' },
-        { quality: 'auto:best' },
-        { fetch_format: 'auto' }
+        { width: 500, height: 500, crop: "fill", gravity: "face" },
+        { quality: "auto:best" },
+        { fetch_format: "auto" },
       ],
-      async: false // Procesamiento sincrónico
+      async: false, // Procesamiento sincrónico
     };
 
-    console.log('Subiendo imagen a Cloudinary con opciones:', uploadOptions);
-    
+    console.log("Subiendo imagen a Cloudinary con opciones:", uploadOptions);
+
     // Subir nueva imagen
     const result = await uploadToCloudinary(req.file.buffer, uploadOptions);
-    
-    console.log('Respuesta de Cloudinary:', {
+
+    console.log("Respuesta de Cloudinary:", {
       status: result.status,
       secure_url: result.secure_url,
       public_id: result.public_id,
       bytes: result.bytes,
-      format: result.format
+      format: result.format,
     });
 
     if (!result.secure_url) {
-      throw new Error('Cloudinary no devolvió URL segura en la respuesta');
+      throw new Error("Cloudinary no devolvió URL segura en la respuesta");
     }
 
     // Optimizar URL (forzar HTTPS y formato automático)
     const optimizedUrl = result.secure_url
-      .replace('http://', 'https://')
-      .replace('/upload/', '/upload/q_auto,f_auto/');
+      .replace("http://", "https://")
+      .replace("/upload/", "/upload/q_auto,f_auto/");
 
     // Actualizar en base de datos
-    await usuario.personas.update({ 
-      foto_perfil: optimizedUrl 
-    }, { transaction: t });
-    
+    await usuario.personas.update(
+      {
+        foto_perfil: optimizedUrl,
+      },
+      { transaction: t },
+    );
+
     await t.commit();
-    
-    console.log('Imagen actualizada correctamente en BD:', optimizedUrl);
+
+    console.log("Imagen actualizada correctamente en BD:", optimizedUrl);
 
     return res.json({
       success: true,
@@ -427,58 +441,61 @@ const actualizarImagenPerfil = async (req, res) => {
         foto_perfil: optimizedUrl,
         public_id: result.public_id,
         format: result.format,
-        size: result.bytes
-      }
+        size: result.bytes,
+      },
     });
-
   } catch (error) {
     await t.rollback();
-    
+
     console.error("Error completo en actualizarImagenPerfil:", {
       message: error.message,
       stack: error.stack,
       code: error.code,
-      originalError: error.original
+      originalError: error.original,
     });
-    
+
     let errorMessage = "Error al actualizar la imagen de perfil";
     let errorCode = "IMAGE_UPDATE_ERROR";
     let details = null;
 
-    if (error.message.includes('File size too large')) {
+    if (error.message.includes("File size too large")) {
       errorMessage = "La imagen es demasiado grande (máximo 5MB)";
       errorCode = "IMAGE_TOO_LARGE";
-    } else if (error.message.includes('Invalid image file')) {
+    } else if (error.message.includes("Invalid image file")) {
       errorMessage = "Formato de imagen no válido";
       errorCode = "INVALID_IMAGE_FORMAT";
-    } else if (error.message.includes('Cloudinary')) {
+    } else if (error.message.includes("Cloudinary")) {
       errorMessage = "Error en el servicio de almacenamiento de imágenes";
       errorCode = "CLOUDINARY_ERROR";
-      details = process.env.NODE_ENV === 'development' ? error.message : null;
+      details = process.env.NODE_ENV === "development" ? error.message : null;
     }
 
     return res.status(500).json({
       success: false,
       message: errorMessage,
       code: errorCode,
-      details: process.env.NODE_ENV === 'development' ? {
-        error: error.message,
-        stack: error.stack
-      } : null
+      details:
+        process.env.NODE_ENV === "development"
+          ? {
+              error: error.message,
+              stack: error.stack,
+            }
+          : null,
     });
   }
 };
 
 const cambiarContrasena = async (req, res) => {
   const { id } = req.params;
-  const { contrasenaActual, nuevaContrasena, confirmacionContrasena } = req.body;
+  const { contrasenaActual, nuevaContrasena, confirmacionContrasena } =
+    req.body;
 
   // Verificar que el usuario solo pueda cambiar su propia contraseña
   if (req.user.id != id) {
     return res.status(403).json({
       success: false,
       message: "Solo puedes cambiar tu propia contraseña",
-      code: "FORBIDDEN"
+      code: "FORBIDDEN",
     });
   }
 
@@ -487,7 +504,7 @@ const cambiarContrasena = async (req, res) => {
     return res.status(400).json({
       success: false,
       message: "Todos los campos son obligatorios",
-      code: "MISSING_REQUIRED_FIELDS"
+      code: "MISSING_REQUIRED_FIELDS",
     });
   }
 
@@ -496,17 +513,19 @@ const cambiarContrasena = async (req, res) => {
     return res.status(400).json({
       success: false,
       message: "Las contraseñas no coinciden",
-      code: "PASSWORD_MISMATCH"
+      code: "PASSWORD_MISMATCH",
     });
   }
 
   // Validar criterios de contraseña
-  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+  const passwordRegex =
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
   if (!passwordRegex.test(nuevaContrasena)) {
     return res.status(400).json({
       success: false,
-      message: "La contraseña debe tener al menos 8 caracteres, una mayúscula, un número y un símbolo especial",
-      code: "INVALID_PASSWORD_FORMAT"
+      message:
+        "La contraseña debe tener al menos 8 caracteres, una mayúscula, un número y un símbolo especial",
+      code: "INVALID_PASSWORD_FORMAT",
     });
   }
 
@@ -517,17 +536,20 @@ const cambiarContrasena = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Usuario no encontrado",
-        code: "USER_NOT_FOUND"
+        code: "USER_NOT_FOUND",
       });
     }
 
     // Verificar contraseña actual
-    const contrasenaValida = await bcrypt.compare(contrasenaActual, usuario.password);
+    const contrasenaValida = await bcrypt.compare(
+      contrasenaActual,
+      usuario.password,
+    );
     if (!contrasenaValida) {
       return res.status(401).json({
         success: false,
         message: "Contraseña actual incorrecta",
-        code: "INVALID_CURRENT_PASSWORD"
+        code: "INVALID_CURRENT_PASSWORD",
       });
     }
 
@@ -537,23 +559,180 @@ const cambiarContrasena = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Contraseña actualizada correctamente"
+      message: "Contraseña actualizada correctamente",
     });
   } catch (error) {
     console.error("Error al cambiar contraseña:", error);
     res.status(500).json({
       success: false,
       message: "Error al cambiar la contraseña",
-      code: "PASSWORD_CHANGE_ERROR"
+      code: "PASSWORD_CHANGE_ERROR",
     });
+  }
+};
+
+const crearAdmin = async (req, res) => {
+  const { email, password, nombre, apellido, telefono } = req.body;
+
+  // Validar campos obligatorios
+  if (!email || !password) {
+    return res.status(400).json({
+      success: false,
+      message: "Email y contraseña son obligatorios",
+      code: "MISSING_REQUIRED_FIELDS",
+    });
+  }
+
+  // Validar formato de email
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({
+      success: false,
+      message: "Formato de email inválido",
+      code: "INVALID_EMAIL_FORMAT",
+    });
+  }
+
+  // Validar criterios de contraseña
+  const passwordRegex =
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+  if (!passwordRegex.test(password)) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "La contraseña debe tener al menos 8 caracteres, una mayúscula, un número y un símbolo especial",
+      code: "INVALID_PASSWORD_FORMAT",
+    });
+  }
+
+  // Validar que el email no esté ya registrado
+  const usuarioExistente = await Usuario.findOne({ where: { email } });
+  if (usuarioExistente) {
+    return res.status(400).json({
+      success: false,
+      message: "El email ya está registrado",
+      code: "EMAIL_ALREADY_REGISTERED",
+    });
+  }
+
+  const t = await sequelize.transaction(); // Iniciar transacción
+  try {
+    // Crear nuevo usuario administrador
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    //Enviar correo
+
+    //Crear el id de persona
+    const persona = await Persona.create(
+      { nombre: null, apellido: null, telefono: null },
+      { transaction: t },
+    );
+    //Crear el usuario
+    const usuario = await Usuario.create(
+      {
+        email,
+        password: hashedPassword,
+        persona_id: persona.id,
+        rol_id, // Rol asignador
+      },
+      { transaction: t },
+    );
+
+    let data = {};
+    //Crear jugador o entrenador
+    if (rol_id == 2) {
+      const entrenador = await Entrenador.create(
+        { usuario_id: usuario.id },
+        { transaction: t },
+      );
+      data = { entrenador };
+    } else if (rol_id == 3) {
+      const jugador = await Jugador.create(
+        { usuario_id: usuario.id },
+        { transaction: t },
+      );
+      data = { jugador };
+    }
+
+    // Confirmar transacción
+    console.log("Usuario creado correctamente");
+
+    await correoContraseña(email, passAleatorea);
+
+    res.json({
+      success: true,
+      message: "Correo de recuperación enviado",
+    });
+    await t.commit();
+  } catch (e) {
+    await t.rollback();
+    console.log("Error en CrearUsuario", e);
+    return res
+      .status(500)
+      .json({ mjs: `Error desde el método CrearUsuario ${e}` });
+  }
+};
+
+const eliminarUser = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = Usuario.findByPk(id);
+  } catch (e) {
+    console.error(`Error desde EliminarUSer ${e}`);
+    return res.status(500).json({ mjs: "Error desde el método EliminarUser" });
+  }
+};
+//-------------------------------------------------------------------------------------------
+
+const obtenerUsers = async (req, res) => {
+  try {
+    console.log("Está accediendo a obtenerUsers");
+
+    const usuarios = await Usuario.findAll({
+      include: [
+        {
+          model: Jugador,
+          as: "jugadores",
+          attributes: ["equipo_id"],
+          required: false,
+        },
+        {
+          model: Entrenador,
+          as: "entrenadores",
+          attributes: ["equipo_id"],
+          required: false,
+        },
+      ],
+    });
+
+    // Mapeamos el resultado para mostrar solo un equipo_id según el rol
+    const usuariosPlano = usuarios.map((user) => {
+      const datos = user.get();
+      let equipo_id = null;
+      if (datos.rol_id === 2 && datos.entrenadores) {
+        equipo_id = datos.entrenadores.equipo_id;
+      } else if (datos.rol_id === 3 && datos.jugadores) {
+        equipo_id = datos.jugadores.equipo_id;
+      }
+      return {
+        ...datos,
+        equipo_id,
+      };
+    });
+
+    return res.json(usuariosPlano);
+  } catch (e) {
+    console.error(`Error desde verUsuarios: ${e}`);
+    return res.status(500).json({ mjs: `Error desde el verUsuarios: ${e}` });
   }
 };
 
 module.exports = {
   CrearUsuario,
-  obtenerUsuarioActual,
+  obtenerUsers,
   obtenerUsuarioPorId,
   actualizarUsuario,
   actualizarImagenPerfil,
-  cambiarContrasena
+  cambiarContrasena,
+  obtenerUsuarioActual,
 };
